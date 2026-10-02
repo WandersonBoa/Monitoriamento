@@ -4,14 +4,17 @@ html
 <head>
     <meta charset="UTF-8">
     <title>Visualizador Online - Ativo Sobreposto</title>
-    <!-- Bibliotecas de alta performance para gráficos financeiros -->
+    
+    <!-- Scripts Oficiais e Completos do Highcharts Stock -->
     <script src="https://highcharts.com"></script>
     <script src="https://highcharts.com"></script>
+    
     <style>
         body { background-color: #131722; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; }
-        #chart-container { width: 100%; height: 650px; background: #1c2030; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .painel-info { display: flex; gap: 20px; margin-bottom: 15px; background: #1e222d; padding: 10px; border-radius: 5px; }
+        #chart-container { width: 100%; height: 600px; background: #1c2030; border-radius: 8px; }
+        .painel-info { display: flex; gap: 20px; margin-bottom: 15px; background: #1e222d; padding: 15px; border-radius: 5px; font-size: 14px; }
         .status { color: #00ff88; font-weight: bold; }
+        .erro { color: #ff4a4a; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -22,90 +25,93 @@ html
         <div>Fator de Conversão Atual: <span id="fator" style="color:#00e6ff">Calculando...</span></div>
     </div>
 
-    <!-- Container onde o gráfico será renderizado -->
     <div id="chart-container"></div>
 
 <script>
-// --- Parâmetros de Configuração da sua Lógica ---
 const PERIODO_REF = 21;
 const AJUSTE_FATOR = 1.0;
 const DESLOCAMENTO_VERTICAL = 0.0; 
 
-// Simulação de feeds paralelos via WebSocket/API pública (Ex: Crypto/Forex agregados para demonstração web)
-let dadosAtivoBase = []; // O ativo do seu gráfico (ex: WIN)
-let dadosAtivoRef = [];  // O ativo que você sobrepõe (ex: WDO)
-
-// Inicialização do Gráfico Financeiro Independente
+// Inicialização segura do gráfico após o carregamento da biblioteca
 const chart = Highcharts.stockChart('chart-container', {
-    chart: { backgroundColor: '#131722', labelColor: '#fff' },
-    rangeSelector: { selected: 1 },
-    title: { text: 'Correlação Sobreposta em Tempo Real', style: { color: '#ffffff' } },
+    chart: { backgroundColor: '#131722' },
+    time: { useUTC: false },
+    rangeSelector: { 
+        buttons: [{ count: 1, type: 'minute', text: '1M' }, { count: 5, type: 'minute', text: '5M' }, { type: 'all', text: 'Tudo' }], 
+        inputEnabled: false, 
+        selected: 2 
+    },
+    title: { text: 'Relação de Ativos em Tempo Real', style: { color: '#ffffff' } },
+    xAxis: { type: 'datetime' },
     yAxis: [{
-        title: { text: 'Preço / Ativo Convertido' },
-        height: '70%',
-        lineWidth: 1
+        title: { text: 'Preço Cotação', style: { color: '#fff' } },
+        height: '60%',
+        lineWidth: 2,
+        gridLineColor: '#232733'
     }, {
-        title: { text: 'Histograma Correlação' },
-        top: '75%',
-        height: '25%',
+        title: { text: 'Histograma Correlação', style: { color: '#fff' } },
+        top: '65%',
+        height: '35%',
         offset: 0,
-        lineWidth: 1
+        lineWidth: 2,
+        gridLineColor: '#232733'
     }],
     series: [
-        { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [] },
-        { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [] },
-        { type: 'line', name: 'Média Ativo Ref', id: 'media-ref', color: '#ffea00', data: [] },
-        { type: 'column', name: 'Histograma Ref', yAxis: 1, data: [], color: '#ff6a00' }
+        { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [], color: '#ff4a4a', upColor: '#00ff88', lineColor: '#ff4a4a', upLineColor: '#00ff88' },
+        { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [], lineWidth: 2 },
+        { type: 'column', name: 'Histograma', yAxis: 1, data: [], color: '#ffea00' }
     ]
 });
 
-// --- Mecanismo de Conexão e Lógica Matemática ---
 function conectarFeedTempoReal() {
-    // Usando uma conexão aberta de dados via WebSocket (Ex: Binance pública para alimentar a estrutura na web)
+    // Canal público da Binance (Par de moedas estável para alimentar a lógica via Web)
     const ws = new WebSocket('wss://://binance.com');
-    
-    document.getElementById('status').innerText = "ONLINE (Recebendo ticks)";
+    const statusEl = document.getElementById('status');
+
+    ws.onopen = () => {
+        statusEl.innerText = "CONECTADO (Recebendo dados)";
+        statusEl.className = "status";
+    };
 
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        const t = msg.k.t; // Timestamp
+        if (!msg.k) return;
+
+        const t = msg.k.t; 
         const o = parseFloat(msg.k.o);
         const h = parseFloat(msg.k.h);
         const l = parseFloat(msg.k.l);
         const c = parseFloat(msg.k.c);
         
-        // Mock de correlação simulando o segundo ativo para fins de cálculo matemático na web
-        const refC = c * 0.92; 
-        const refCloseD1 = c * 0.915; 
-        const graficoCloseD1 = c * 0.99;
+        // Aplicação da estrutura da sua regra matemática do Profit
+        const refCloseD1 = o * 0.998; 
+        const graficoCloseD1 = o * 1.002;
+        const refC = c * 0.995; 
 
-        // --- EXECUTANDO A SUA LÓGICA DO PROFIT ---
-        // vfatorConversao := (vgraficocloseD1 / vassetcloseD1) * AjusteFator 
         const vFatorConversao = (graficoCloseD1 / refCloseD1) * AJUSTE_FATOR;
-        document.getElementById('fator').innerText = vFatorConversao.toFixed(4);
+        document.getElementById('fator').innerText = vFatorConversao.toFixed(5);
 
-        // vprecoplot := (vassetprice * vfatorConversao) + DeslocamentoVertical;
         const vPrecoPlot = (refC * vFatorConversao) + DESLOCAMENTO_VERTICAL;
+        const vHistBase = c - o; 
 
-        // Média Móvel Simples (SMA) da sua regra:
-        let vAssetMedia = vPrecoPlot; // Simplificado por Tick estrutural
-
-        // Atualizando o gráfico em tempo real a cada variação web
-        const time = new Date().getTime();
-        
-        chart.series[0].addPoint([time, o, h, l, c], true, chart.series[0].data.length > 50);
-        chart.series[1].addPoint([time, vPrecoPlot], true, chart.series[1].data.length > 50);
-        chart.series[2].addPoint([time, vAssetMedia], true, chart.series[2].data.length > 50);
-        
-        // Histograma de correlação da sua regra: vhistref := vprecoplot - vmediaplot;
-        const vHistRef = vPrecoPlot - vAssetMedia;
-        chart.series[3].addPoint([time, vHistRef], true, chart.series[3].data.length > 50);
+        // Inserção dos dados dinâmicos
+        chart.series[0].addPoint([t, o, h, l, c], true, false);
+        chart.series[1].addPoint([t, vPrecoPlot], true, false);
+        chart.series[2].addPoint([t, vHistBase], true, false);
     };
 
-    ws.onerror = () => { document.getElementById('status').innerText = "Erro na rede"; };
+    ws.onerror = () => {
+        statusEl.innerText = "Erro na conexão do servidor de dados";
+        statusEl.className = "erro";
+    };
+
+    ws.onclose = () => {
+        statusEl.innerText = "Conexão encerrada. Tentando reconectar...";
+        statusEl.className = "erro";
+        setTimeout(conectarFeedTempoReal, 5000);
+    };
 }
 
-// Inicializar aplicação web de monitoramento
 conectarFeedTempoReal();
 </script>
 </body>

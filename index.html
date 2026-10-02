@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -103,8 +104,7 @@ function criarConfiguracaoGrafico(titulo, dadosIniciais) {
 
 async function requisitarDadosHistoricosReais() {
     try {
-        // API pública alternativa sem restrição de CORS para navegadores
-        const apiUrI = "https://" + "api" + "1" + "." + "binance" + ".com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000";
+        const apiUrI = "https://" + "api1" + "." + "binance" + ".com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000";
         const res = await fetch(apiUrI);
         const klines = await res.json();
 
@@ -112,7 +112,8 @@ async function requisitarDadosHistoricosReais() {
         hoje9Horas.setHours(9, 0, 0, 0);
         const t9h = hoje9Horas.getTime();
 
-        let precosFiltrados1M =;
+        // Evita caracteres que quebram o chat utilizando construtores explícitos
+        let precosFiltrados1M = new Array();
 
         klines.forEach(k => {
             const t = parseInt(k[0]);
@@ -125,9 +126,8 @@ async function requisitarDadosHistoricosReais() {
             }
         });
 
-        // --- ENGENHARIA RETROATIVA 2 MINUTOS (MÉDIA REAL) ---
-        let historicoGrafico2M =;
-        let janelaMedias2M =;
+        let historicoGrafico2M = new Array();
+        let janelaMedias2M = new Array();
         for (let i = 0; i < precosFiltrados1M.length; i += 2) {
             if (!precosFiltrados1M[i+1]) break;
             const cand = precosFiltrados1M[i+1];
@@ -137,15 +137,14 @@ async function requisitarDadosHistoricosReais() {
             const vPrecoPlot = vAssetPrice * vFatorConversao;
 
             janelaMedias2M.push(vPrecoPlot);
-            if(janelaMedias2M.length > 21) janelaMedias2M.shift(); // Regra PeriodoREF(21)
+            if(janelaMedias2M.length > 21) janelaMedias2M.shift();
 
             const vAssetMedia = janelaMedias2M.reduce((a,b)=>a+b, 0) / janelaMedias2M.length;
             historicoGrafico2M.push([cand.time, vPrecoPlot - vAssetMedia]);
         }
 
-        // --- ENGENHARIA RETROATIVA 5 MINUTOS (MÉDIA REAL) ---
-        let historicoGrafico5M =;
-        let janelaMedias5M =;
+        let historicoGrafico5M = new Array();
+        let janelaMedias5M = new Array();
         for (let i = 0; i < precosFiltrados1M.length; i += 5) {
             if (!precosFiltrados1M[i+4]) break;
             const cand = precosFiltrados1M[i+4];
@@ -158,10 +157,9 @@ async function requisitarDadosHistoricosReais() {
             if(janelaMedias5M.length > 21) janelaMedias5M.shift();
 
             const vAssetMedia = janelaMedias5M.reduce((a,b)=>a+b, 0) / janelaMedias5M.length;
-            historicoGrafico5M.push([cand.time, (vPrecoPlot - vAssetMedia) * 1.5]); // Multiplicador de escala do Profit
+            historicoGrafico5M.push([cand.time, (vPrecoPlot - vAssetMedia) * 1.5]);
         }
 
-        // Renderiza os gráficos com as curvas reais do mercado capturadas
         const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)', historicoGrafico2M));
         const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)', historicoGrafico5M));
 
@@ -200,7 +198,6 @@ function conectarFluxoTempoReal(chart2M, chart5M, janelaMedias2M, janelaMedias5M
 
         const limitePontos = 400;
 
-        // --- TRANSMISSÃO CONTÍNUA 2M ---
         if (time >= proximaJanela2M) {
             janelaMedias2M.push(vPrecoPlot);
             if(janelaMedias2M.length > 21) janelaMedias2M.shift();
@@ -209,11 +206,10 @@ function conectarFluxoTempoReal(chart2M, chart5M, janelaMedias2M, janelaMedias5M
         const vAssetMedia2M = janelaMedias2M.reduce((a, b) => a + b, 0) / janelaMedias2M.length;
         const vHistRef2M = vAssetMedia2M !== 0 ? (vPrecoPlot - vAssetMedia2M) : 0;
         
-        if (chart2M.series[0].data.length > 0) {
+        if (chart2M.series[0] && chart2M.series[0].data) {
             chart2M.series[0].addPoint([time, vHistRef2M], true, chart2M.series[0].data.length > limitePontos);
         }
 
-        // --- TRANSMISSÃO CONTÍNUA 5M ---
         if (time >= proximaJanela5M) {
             janelaMedias5M.push(vPrecoPlot);
             if(janelaMedias5M.length > 21) janelaMedias5M.shift();
@@ -222,7 +218,7 @@ function conectarFluxoTempoReal(chart2M, chart5M, janelaMedias2M, janelaMedias5M
         const vAssetMedia5M = janelaMedias5M.reduce((a, b) => a + b, 0) / janelaMedias5M.length;
         const vHistRef5M = vAssetMedia5M !== 0 ? (vPrecoPlot - vAssetMedia5M) * 1.5 : 0;
 
-        if (chart5M.series[0].data.length > 0) {
+        if (chart5M.series[0] && chart5M.series[0].data) {
             chart5M.series[0].addPoint([time, vHistRef5M], true, chart5M.series[0].data.length > limitePontos);
         }
     };

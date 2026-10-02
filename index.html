@@ -102,7 +102,7 @@ function criarConfiguracaoGrafico(titulo) {
                 zones: [{ value: 0, color: '#ff1744' }, { color: '#00e676' }]
             }
         },
-        series: [{ type: 'spline', name: 'vHistref', data: [] }]
+        series: [{ type: 'spline', name: 'vHistref', data: }]
     };
 }
 
@@ -110,27 +110,19 @@ function rodarIndicadores() {
     const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)'));
     const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)'));
 
-    let historicoPrecos2M = [];
-    let historicoPrecos5M = [];
+    // Buffers para cálculo das médias móveis originais (PeriodoREF = 21)
+    let historicoPrecos2M = Array(21).fill(0);
+    let historicoPrecos5M = Array(21).fill(0);
 
-    // Inicializa gerando uma linha de base estável na hora de abrir
-    const tempoInicial = Date.now();
-    for(let i = 40; i >= 0; i--) {
-        const fakeTime = tempoInicial - (i * 60000);
-        chart2M.series[0].addPoint([fakeTime, 0], false);
-        chart5M.series[0].addPoint([fakeTime, 0], false);
-    }
-    chart2M.redraw();
-    chart5M.redraw();
-
-    let proximaAtualizacao2M = 0;
-    let proximaAtualizacao5M = 0;
+    // Timestamps de controle para fechar e travar os períodos
+    let proximaJanela2M = Date.now() + 120000;
+    let proximaJanela5M = Date.now() + 300000;
 
     const wssUrl = "wss://" + "stream" + "." + "binance" + ".com:9443/ws/btcusdt@kline_1m";
     const ws = new WebSocket(wssUrl);
 
     ws.onopen = () => {
-        document.getElementById('status-carregamento').innerText = "Horário de Monitoramento: 09:00 às 18:00 (CONECTADO VIA WEBSOCKET)";
+        document.getElementById('status-carregamento').innerText = "Horário de Monitoramento: 09:00 às 18:00 (TRANSMISSÃO ATIVA)";
     };
 
     ws.onmessage = (event) => {
@@ -145,32 +137,43 @@ function rodarIndicadores() {
         const closePrice = parseFloat(msg.k.c);
         const openPrice = parseFloat(msg.k.o);
 
+        // Algoritmo matemático original do Profit traduzido para a Web
         const vAssetPrice = closePrice * 0.95;
         const vFatorConversao = openPrice / (openPrice * 0.948);
         const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        const limitePontos = 200;
+        const limitePontos = 150;
 
-        // --- ATUALIZAÇÃO 2 MINUTOS ---
-        if (time >= proximaAtualizacao2M) {
+        // --- ATUALIZAÇÃO E CÁLCULO INDIVIDUAL: 2 MINUTOS ---
+        if (time >= proximaJanela2M) {
             historicoPrecos2M.push(vPrecoPlot);
             if(historicoPrecos2M.length > 21) historicoPrecos2M.shift();
-            const vAssetMedia2M = historicoPrecos2M.reduce((a, b) => a + b, 0) / historicoPrecos2M.length;
-            const vHistRef2M = vPrecoPlot - vAssetMedia2M;
-
+            proximaJanela2M = time + 120000;
+        }
+        // Atualiza dinamicamente o último ponto para se mover em tempo real
+        const vAssetMedia2M = historicoPrecos2M.reduce((a, b) => a + b, 0) / historicoPrecos2M.length;
+        const vHistRef2M = vAssetMedia2M !== 0 ? (vPrecoPlot - vAssetMedia2M) : 0;
+        
+        // Verifica se adiciona um ponto novo ou atualiza a ponta atual da linha
+        if (chart2M.series[0].data.length === 0 || time - chart2M.series[0].data[chart2M.series[0].data.length - 1].x > 2000) {
             chart2M.series[0].addPoint([time, vHistRef2M], true, chart2M.series[0].data.length > limitePontos);
-            proximaAtualizacao2M = time + 120000; 
+        } else {
+            chart2M.series[0].data[chart2M.series[0].data.length - 1].update([time, vHistRef2M]);
         }
 
-        // --- ATUALIZAÇÃO 5 MINUTOS ---
-        if (time >= proximaAtualizacao5M) {
+        // --- ATUALIZAÇÃO E CÁLCULO INDIVIDUAL: 5 MINUTOS ---
+        if (time >= proximaJanela5M) {
             historicoPrecos5M.push(vPrecoPlot);
             if(historicoPrecos5M.length > 21) historicoPrecos5M.shift();
-            const vAssetMedia5M = historicoPrecos5M.reduce((a, b) => a + b, 0) / historicoPrecos5M.length;
-            const vHistRef5M = (vPrecoPlot - vAssetMedia5M) * 1.5;
+            proximaJanela5M = time + 300000;
+        }
+        const vAssetMedia5M = historicoPrecos5M.reduce((a, b) => a + b, 0) / historicoPrecos5M.length;
+        const vHistRef5M = vAssetMedia5M !== 0 ? (vPrecoPlot - vAssetMedia5M) * 1.5 : 0;
 
+        if (chart5M.series[0].data.length === 0 || time - chart5M.series[0].data[chart5M.series[0].data.length - 1].x > 2000) {
             chart5M.series[0].addPoint([time, vHistRef5M], true, chart5M.series[0].data.length > limitePontos);
-            proximaAtualizacao5M = time + 300000; 
+        } else {
+            chart5M.series[0].data[chart5M.series[0].data.length - 1].update([time, vHistRef5M]);
         }
     };
 }

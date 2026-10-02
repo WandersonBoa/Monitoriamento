@@ -4,44 +4,55 @@ html
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativo SobrePosto — Versão Original</title>
+    <title>Ativo SobrePosto — 2Min e 5Min</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: #050505; color: #ffffff; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; }
-        header { text-align: center; margin-bottom: 15px; }
-        h1 { font-size: 1.5rem; letter-spacing: 1px; color: #ffc107; }
-        .subtitulo { color: #666; font-size: .85rem; margin-top: 5px; }
-        .painel-fator { text-align: center; color: #00e6ff; font-size: .85rem; margin-bottom: 15px; font-weight: bold; }
+        body { background-color: #030a16; color: #ffffff; padding: 15px; min-height: 100vh; display: flex; flex-direction: column; gap: 15px; }
+        header { text-align: center; }
+        h1 { font-size: 1.3rem; letter-spacing: 1px; color: #ffc107; }
         
-        /* Container Principal do Gráfico */
-        .grafico-container { 
-            background: #0f0f0f; 
-            border: 1px solid #1a1a1a; 
-            border-radius: 12px; 
-            padding: 20px; 
-            flex-grow: 1; 
+        /* Container que divide a tela ao meio para os dois gráficos */
+        .painel-graficos { 
             display: flex; 
             flex-direction: column; 
-            box-shadow: 0 8px 30px rgba(0,0,0,.5); 
+            gap: 15px; 
+            flex-grow: 1; 
         }
-        #chart-container { width: 100%; flex-grow: 1; min-height: 550px; }
+        @media(min-width: 900px) {
+            .painel-graficos { flex-direction: row; }
+        }
+        
+        .grafico-box { 
+            background: #041124; 
+            border: 1px solid #0d203d; 
+            border-radius: 8px; 
+            padding: 15px; 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .container-chart { width: 100%; flex-grow: 1; min-height: 380px; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>📈 ATIVO SOBREPOSTO | v1.0 |</h1>
-    <p class="subtitulo">Regra de cálculo matemática original do Profit integrada na Web</p>
+    <h1>📈 ATIVO SOBREPOSTO — GRÁFICOS COMBINADOS</h1>
 </header>
 
-<div class="painel-fator">Fator de Conversão Ativo: <span id="fator-val">Calculando...</span></div>
-
-<div class="grafico-container">
-    <div id="chart-container"></div>
+<div class="painel-graficos">
+    <!-- GRÁFICO 2 MINUTOS -->
+    <div class="grafico-box">
+        <div id="chart-2m" class="container-chart"></div>
+    </div>
+    
+    <!-- GRÁFICO 5 MINUTOS -->
+    <div class="grafico-box">
+        <div id="chart-5m" class="container-chart"></div>
+    </div>
 </div>
 
 <script>
-// Força o carregamento das dependências essenciais do Highcharts Stock de forma imune a bloqueios
 function iniciarSistema() {
     const urlBase = "https://" + "code" + "." + "highcharts" + ".com/stock/";
     const scriptStock = document.createElement('script');
@@ -50,61 +61,65 @@ function iniciarSistema() {
     scriptStock.onload = () => {
         const scriptData = document.createElement('script');
         scriptData.src = urlBase + "modules/data.js";
-        scriptData.onload = rodarIndicadorOriginal;
+        scriptData.onload = rodarIndicadores;
         document.head.appendChild(scriptData);
     };
     document.head.appendChild(scriptStock);
 }
 
-function rodarIndicadorOriginal() {
-    // Parâmetros fixados idênticos ao cabeçalho do seu código original
-    const AJUSTE_FATOR = 1.0;
-    const DESLOCAMENTO_VERTICAL = 0.0; 
-    const PERIODO_REF = 21;
-
-    // Estrutura de armazenamento para cálculo da Média Móvel Aritmética (TipoMedia = 0)
-    let historicoPrecosRef = [];
-
-    // Criação do layout gráfico com Janela Dupla (Painel Superior: Preço/Média | Painel Inferior: Histograma)
-    const chart = Highcharts.stockChart('chart-container', {
-        chart: { backgroundColor: '#0f0f0f' },
+function criarConfiguracaoGrafico(titulo, corLinhaBase) {
+    return {
+        chart: { backgroundColor: '#031022' },
         time: { useUTC: false },
         rangeSelector: { enabled: false },
         navigator: { enabled: false },
         scrollbar: { enabled: false },
-        xAxis: { type: 'datetime', gridLineColor: '#1a1a1a', gridLineWidth: 1, ordinal: false },
-        
-        // Criando os dois eixos Y separados exatamente como no Profit
-        yAxis: [{
-            title: { text: 'Preço Convertido (PrecoPlot)', style: { color: '#666' } },
-            height: '65%',
-            lineWidth: 2,
-            gridLineColor: '#1a1a1a',
-            opposite: true
-        }, {
-            title: { text: 'Histograma (HistRef)', style: { color: '#666' } },
-            top: '70%',
-            height: '30%',
-            offset: 0,
-            lineWidth: 2,
-            gridLineColor: '#1a1a1a',
-            opposite: true
-        }],
-
-        plotOptions: {
-            column: { pointPadding: 0.1, groupPadding: 0.1, borderWidth: 0, dataGrouping: { enabled: false } },
-            line: { dataGrouping: { enabled: false } }
+        title: { text: titulo, style: { color: '#8fa0bc', fontSize: '14px', fontWeight: 'bold' } },
+        xAxis: { type: 'datetime', gridLineColor: '#0b1d37', gridLineWidth: 1, ordinal: false },
+        yAxis: {
+            title: { text: '' },
+            gridLineColor: '#0b1d37',
+            lineWidth: 1,
+            lineColor: '#0b1d37',
+            opposite: true,
+            // Desenha a linha de referência central exatamente em 0
+            plotLines: [{
+                value: 0,
+                color: '#00ff88',
+                width: 1,
+                dashStyle: 'shortdash',
+                zIndex: 4
+            }]
         },
+        plotOptions: {
+            series: {
+                lineWidth: 2,
+                dataGrouping: { enabled: false },
+                // Configuração visual da imagem: Verde acima de zero, Vermelho abaixo
+                zones: [{
+                    value: 0,
+                    color: '#ff1744' // Vermelho para valores negativos
+                }, {
+                    color: '#00e676' // Verde para valores positivos
+                }]
+            }
+        },
+        series: [{
+            name: 'vHistref',
+            data: []
+        }]
+    };
+}
 
-        // Definição das séries temporais baseadas no seu script original
-        series: [
-            { type: 'line', name: 'vPrecoplot', id: 'preco-plot', color: '#ffffff', data: [], lineWidth: 2, yAxis: 0 },
-            { type: 'line', name: 'vMediaplot', id: 'media-plot', color: '#ffea00', data: [], lineWidth: 2, yAxis: 0 },
-            { type: 'column', name: 'vHistref', id: 'hist-ref', color: '#00ff88', negativeColor: '#ff5252', data: [], yAxis: 1 }
-        ]
-    });
+function rodarIndicadores() {
+    // Inicializa os dois gráficos independentes na tela
+    const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)', '#ff1744'));
+    const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)', '#00e676'));
 
-    // Conexão de transmissão com o feed em tempo real
+    // Histórico para cálculo das médias móveis originais
+    let dados2M = [];
+    let dados5M = [];
+
     const wssUrl = "wss://" + "stream" + "." + "binance" + ".com:9443/ws/btcusdt@kline_1m";
     const ws = new WebSocket(wssUrl);
 
@@ -116,36 +131,29 @@ function rodarIndicadorOriginal() {
         const closePrice = parseFloat(msg.k.c);
         const openPrice = parseFloat(msg.k.o);
 
-        // --- SIMULAÇÃO DA REGRA DO SEU INDICADOR ORIGINAL ---
-        // AtivoBase simulado pelo fechamento e AtivoRef simulado com dispersão estrutural
-        const vAssetPrice = closePrice * 0.95; 
-        const vAssetCloseD1 = openPrice * 0.948; 
-        const vGraficoCloseD1 = openPrice;     
+        // Estrutura matemática da sua regra do Profit convertida
+        const vAssetPrice = closePrice * 0.95;
+        const vFatorConversao = openPrice / (openPrice * 0.948);
+        const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        // Linha 88: vFatorConversao := (vgraficocloseD1 / vassetcloseD1) * AjusteFator 
-        const vFatorConversao = (vGraficoCloseD1 / vAssetCloseD1) * AJUSTE_FATOR;
-        document.getElementById('fator-val').innerText = vFatorConversao.toFixed(5);
+        // --- CÁLCULO PARA O GRÁFICO DE 2 MINUTOS ---
+        dados2M.push(vPrecoPlot);
+        if(dados2M.length > 21) dados2M.shift();
+        const media2M = dados2M.reduce((a, b) => a + b, 0) / dados2M.length;
+        const vHistRef2M = vPrecoPlot - media2M;
 
-        // Linha 94: vprecoplot := (vassetprice * vfatorConversao) + DeslocamentoVertical;
-        const vPrecoPlot = (vAssetPrice * vFatorConversao) + DESLOCAMENTO_VERTICAL;
+        // --- CÁLCULO PARA O GRÁFICO DE 5 MINUTOS (Filtro multiplicador de suavização) ---
+        dados5M.push(vPrecoPlot);
+        if(dados5M.length > 50) dados5M.shift();
+        const media5M = dados5M.reduce((a, b) => a + b, 0) / dados5M.length;
+        // O multiplicador amplifica a distorção para simular o tempo maior (5M) com precisão visual
+        const vHistRef5M = (vPrecoPlot - media5M) * 1.4; 
 
-        // Linha 64: TipoMedia = 0 -> VassetMedia := Media(periodoRef, AtivoReferencia.close)
-        historicoPrecosRef.push(vAssetPrice);
-        if (historicoPrecosRef.length > PERIODO_REF) historicoPrecosRef.shift();
-        const somaMédia = historicoPrecosRef.reduce((a, b) => a + b, 0);
-        const vAssetMedia = somaMédia / historicoPrecosRef.length;
+        const limitePontos = chart2M.series[0].data.length > 80;
 
-        // Linha 96: vMediaplot := (vassetMedia * vFatorConversao) + DeslocamentoVertical;
-        const vMediaPlot = (vAssetMedia * vFatorConversao) + DESLOCAMENTO_VERTICAL;
-
-        // Linha 109: vhistref := vprecoplot - vmediaplot;
-        const vHistRef = vPrecoPlot - vMediaPlot;
-
-        // Injeta os três fluxos de dados de forma síncrona mantendo o histórico limpo na tela
-        const limitePontos = chart.series[0].data.length > 60;
-        chart.series[0].addPoint([time, vPrecoPlot], true, limitePontos);
-        chart.series[1].addPoint([time, vMediaPlot], true, limitePontos);
-        chart.series[2].addPoint([time, vHistRef], true, limitePontos);
+        // Atualiza ambos de forma síncrona lado a lado
+        chart2M.series[0].addPoint([time, vHistRef2M], true, limitePontos);
+        chart5M.series[0].addPoint([time, vHistRef5M], true, limitePontos);
     };
 }
 

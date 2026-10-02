@@ -1,81 +1,114 @@
+html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WMB Correlação — WINFUT × WDOFUT</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>Visualizador Online - Ativo Sobreposto</title>
+    <!-- Bibliotecas Oficiais do Highcharts Stock completas -->
+    <script src="https://highcharts.com"></script>
+    <script src="https://highcharts.com"></script>
+    <style>
+        body { background-color: #131722; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; }
+        #chart-container { width: 100%; height: 600px; background: #1c2030; border-radius: 8px; }
+        .painel-info { display: flex; gap: 20px; margin-bottom: 15px; background: #1e222d; padding: 15px; border-radius: 5px; font-size: 14px; }
+        .status { color: #00ff88; font-weight: bold; }
+        .erro { color: #ff4a4a; font-weight: bold; }
+    </style>
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div>
-        <strong>WMB_CORRELACAO</strong>
-        <span class="version">v1.0</span>
-        <span class="pair">WINFUT × WDOFUT</span>
-      </div>
-      <div class="live"><span class="dot"></span> AO VIVO — DEMONSTRAÇÃO</div>
-    </header>
 
-    <main class="dashboard">
-      <section class="card gauge-card">
-        <h2>VELOCÍMETRO DE CORRELAÇÃO</h2>
-        <div class="gauge-wrap">
-          <canvas id="gauge" width="420" height="260"></canvas>
-        </div>
-        <div id="corrValue" class="big-value">0,00</div>
-        <div id="corrClass" class="corr-class">NEUTRA</div>
-      </section>
+    <h2>📊 Indicador Ativo Sobreposto v1.0 (Tempo Real Web)</h2>
+    <div class="painel-info">
+        <div>Status da Conexão: <span id="status" class="status">Conectando...</span></div>
+        <div>Fator de Conversão Atual: <span id="fator" style="color:#00e6ff">Calculando...</span></div>
+    </div>
 
-      <section class="card summary-card">
-        <h2>RESUMO</h2>
-        <div class="metric"><span>Correlação atual</span><b id="currentCorr">0,00</b></div>
-        <div class="metric"><span>Correlação média</span><b id="avgCorr">0,00</b></div>
-        <div class="metric"><span>Força</span><b id="strength">—</b></div>
-        <div class="metric"><span>Direção</span><b id="direction">—</b></div>
-        <div class="metric"><span>WINFUT</span><b id="winPrice">—</b></div>
-        <div class="metric"><span>WDOFUT</span><b id="wdoPrice">—</b></div>
-      </section>
+    <div id="chart-container"></div>
 
-      <section class="card chart-card">
-        <h2>LINHAS DE CORRELAÇÃO</h2>
-        <canvas id="corrChart"></canvas>
-        <div class="legend">
-          <span><i class="positive"></i> positiva</span>
-          <span><i class="negative"></i> negativa</span>
-          <span><i class="zero"></i> zero</span>
-        </div>
-      </section>
+<script>
+const PERIODO_REF = 21;
+const AJUSTE_FATOR = 1.0;
+const DESLOCAMENTO_VERTICAL = 0.0; 
 
-      <section class="card signals-card">
-        <h2>SINAIS</h2>
-        <div id="signal" class="signal neutral">NEUTRO</div>
-        <div class="signal-box">
-          <span>TENDÊNCIA</span>
-          <b id="trend">NEUTRA</b>
-        </div>
-        <div class="signal-box">
-          <span>FILTRO (ADX)</span>
-          <b id="adx">—</b>
-          <small id="adxStatus">AGUARDANDO</small>
-        </div>
-        <div class="di-row">
-          <div><span>DI+</span><b id="diPlus">—</b></div>
-          <div><span>DI-</span><b id="diMinus">—</b></div>
-        </div>
-      </section>
+// Configuração inicial do gráfico com Highcharts Stock oficial
+const chart = Highcharts.stockChart('chart-container', {
+    chart: { backgroundColor: '#131722' },
+    time: { useUTC: false },
+    rangeSelector: { buttons: [{ count: 1, type: 'minute', text: '1M' }, { count: 5, type: 'minute', text: '5M' }, { type: 'all', text: 'Tudo' }], inputEnabled: false, selected: 2 },
+    title: { text: 'Relação de Ativos em Tempo Real', style: { color: '#ffffff' } },
+    xAxis: { type: 'datetime' },
+    yAxis: [{
+        title: { text: 'Preço Cotação', style: { color: '#fff' } },
+        height: '60%',
+        lineWidth: 2,
+        gridLineColor: '#232733'
+    }, {
+        title: { text: 'Histograma Correlação', style: { color: '#fff' } },
+        top: '65%',
+        height: '35%',
+        offset: 0,
+        lineWidth: 2,
+        gridLineColor: '#232733'
+    }],
+    series: [
+        { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [], color: '#ff4a4a', upColor: '#00ff88', lineColor: '#ff4a4a', upLineColor: '#00ff88' },
+        { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [], lineWidth: 2 },
+        { type: 'column', name: 'Histograma', yAxis: 1, data: [], color: '#ffea00' }
+    ]
+});
 
-      <section class="card bottom-card">
-        <div class="strength-title">FORÇA DA CORRELAÇÃO</div>
-        <div class="strength-bar">
-          <div class="ticks"></div>
-          <div id="strengthMarker" class="marker"></div>
-        </div>
-        <label>Período: <input id="period" type="range" min="5" max="50" value="21"> <b id="periodValue">21</b></label>
-        <div class="update">Atualização: <b id="clock">--:--:--</b> <span class="live"><span class="dot"></span> Ao vivo</span></div>
-      </section>
-    </main>
-  </div>
-  <script src="app.js"></script>
+function conectarFeedTempoReal() {
+    // Endereço de conexão WebSocket público corrigido da Binance (par de teste estável BTC/USDT)
+    const ws = new WebSocket('wss://://binance.com');
+    const statusEl = document.getElementById('status');
+
+    ws.onopen = () => {
+        statusEl.innerText = "CONECTADO (Recebendo dados)";
+        statusEl.className = "status";
+    };
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (!msg.k) return;
+
+        const t = msg.k.t; 
+        const o = parseFloat(msg.k.o);
+        const h = parseFloat(msg.k.h);
+        const l = parseFloat(msg.k.l);
+        const c = parseFloat(msg.k.c);
+        
+        // Simulação matemática das variáveis baseadas no feed em tempo real
+        const refCloseD1 = o * 0.998; 
+        const graficoCloseD1 = o * 1.002;
+        const refC = c * 0.995; 
+
+        // Executando sua lógica matemática do Profit adaptada para a web
+        const vFatorConversao = (graficoCloseD1 / refCloseD1) * AJUSTE_FATOR;
+        document.getElementById('fator').innerText = vFatorConversao.toFixed(5);
+
+        const vPrecoPlot = (refC * vFatorConversao) + DESLOCAMENTO_VERTICAL;
+        const vHistBase = c - o; 
+
+        // Adiciona ou atualiza os pontos dinamicamente no gráfico web
+        chart.series[0].addPoint([t, o, h, l, c], true, false);
+        chart.series[1].addPoint([t, vPrecoPlot], true, false);
+        chart.series[2].addPoint([t, vHistBase], true, false);
+    };
+
+    ws.onerror = () => {
+        statusEl.innerText = "Erro na conexão do servidor de dados";
+        statusEl.className = "erro";
+    };
+
+    ws.onclose = () => {
+        statusEl.innerText = "Conexão encerrada. Tentando reconectar...";
+        statusEl.className = "erro";
+        setTimeout(conectarFeedTempoReal, 5000);
+    };
+}
+
+// Inicializa a conexão
+conectarFeedTempoReal();
+</script>
 </body>
 </html>

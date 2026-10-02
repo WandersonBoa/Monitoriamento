@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -10,7 +11,6 @@
         header { text-align: center; }
         h1 { font-size: 1.3rem; letter-spacing: 1px; color: #ffc107; }
         
-        /* Container empilhado verticalmente (um sobre o outro) */
         .painel-graficos { 
             display: flex; 
             flex-direction: column; 
@@ -24,7 +24,7 @@
             border-radius: 8px; 
             padding: 15px; 
             width: 100%;
-            height: calc(50vh - 50px); /* Divide a tela igualmente na vertical */
+            height: calc(50vh - 50px);
             min-height: 280px;
             display: flex; 
             flex-direction: column; 
@@ -103,7 +103,7 @@ function criarConfiguracaoGrafico(titulo) {
         series: [{
             type: 'spline',
             name: 'vHistref',
-            data:
+            data: []
         }]
     };
 }
@@ -112,10 +112,10 @@ function rodarIndicadores() {
     const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)'));
     const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)'));
 
-    let dados2M =;
-    let dados5M =;
+    let dados2M = [];
+    let dados5M = [];
 
-    // Timestamps de controle para fechar os blocos de tempo
+    // Controles de tempo inicializados em zero para plotar o primeiro ponto na hora
     let proximaAtualizacao2M = 0;
     let proximaAtualizacao5M = 0;
 
@@ -134,29 +134,27 @@ function rodarIndicadores() {
         const vFatorConversao = openPrice / (openPrice * 0.948);
         const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        const limitePontos = chart2M.series.data.length > 50;
+        const limitePontos = 50;
 
-        // --- ATUALIZAÇÃO INDIVIDUAL: GRÁFICO DE 2 MINUTOS ---
+        // --- ATUALIZAÇÃO 2 MINUTOS ---
         if (time >= proximaAtualizacao2M) {
             dados2M.push(vPrecoPlot);
             if(dados2M.length > 21) dados2M.shift();
             const media2M = dados2M.reduce((a, b) => a + b, 0) / dados2M.length;
             const vHistRef2M = vPrecoPlot - media2M;
 
-            chart2M.series.addPoint([time, vHistRef2M], true, limitePontos);
-            // Define o próximo candle para daqui a 2 minutos exatos (120000 milissegundos)
+            chart2M.series[0].addPoint([time, vHistRef2M], true, chart2M.series[0].data.length > limitePontos);
             proximaAtualizacao2M = time + 120000; 
         }
 
-        // --- ATUALIZAÇÃO INDIVIDUAL: GRÁFICO DE 5 MINUTOS ---
+        // --- ATUALIZAÇÃO 5 MINUTOS ---
         if (time >= proximaAtualizacao5M) {
             dados5M.push(vPrecoPlot);
             if(dados5M.length > 50) dados5M.shift();
             const media5M = dados5M.reduce((a, b) => a + b, 0) / dados5M.length;
             const vHistRef5M = (vPrecoPlot - media5M) * 1.4; 
 
-            chart5M.series.addPoint([time, vHistRef5M], true, limitePontos);
-            // Define o próximo candle para daqui a 5 minutos exatos (300000 milissegundos)
+            chart5M.series[0].addPoint([time, vHistRef5M], true, chart5M.series[0].data.length > limitePontos);
             proximaAtualizacao5M = time + 300000; 
         }
     };

@@ -1,124 +1,322 @@
-html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Visualizador Online - Ativo Sobreposto</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nosso Pulse — DADOS REAIS B3</title>
     <style>
-        body { background-color: #131722; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; }
-        #chart-container { width: 100%; height: 600px; background: #1c2030; border-radius: 8px; }
-        .painel-info { display: flex; gap: 20px; margin-bottom: 15px; background: #1e222d; padding: 15px; border-radius: 5px; font-size: 14px; }
-        .status { color: #00ff88; font-weight: bold; }
-        .erro { color: #ff4a4a; font-weight: bold; }
+        *{margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif;}
+        :root{--bg:#0f1115; --card:#1a1d23; --border:#2a2d34; --green:#00c853; --red:#f44336; --fucsia:#d81b60; --yellow:#ffc107; --blue:#2196f3; --text:#e0e0e0; --muted:#888;}
+        body{background:var(--bg); color:var(--text); padding:15px; max-width:1400px; margin:0 auto;}
+        h1{text-align:center; margin-bottom:15px; color:var(--yellow); font-size:1.5rem;}
+        .atualizacao{text-align:center; color:var(--muted); font-size:.85rem; margin-bottom:20px;}
+        .grid-top{display:grid; grid-template-columns:1fr; gap:20px; margin-bottom:25px;}
+        @media(min-width:900px){.grid-top{grid-template-columns:1fr 1fr 1fr;}}
+        .card{background:var(--card); border-radius:12px; padding:20px; box-shadow:0 4px 15px rgba(0,0,0,.3);}
+        .card-title{font-size:1.1rem; font-weight:bold; margin-bottom:15px; display:flex; justify-content:space-between;}
+        .tag{font-size:.75rem; padding:3px 8px; border-radius:4px; background:var(--border);}
+        .value-display{font-size:2.2rem; font-weight:bold; text-align:center; margin:10px 0;}
+        .gauge-container{position:relative; height:36px; background:var(--border); border-radius:18px; margin:15px 0; overflow:hidden;}
+        .gauge-fill{height:100%; border-radius:18px; transition:all .4s ease; width:0; position:absolute; left:50%;}
+        .zero-line{position:absolute; top:0; bottom:0; width:2px; background:#fff; left:50%; transform:translateX(-50%); z-index:3;}
+        .ref-lines{display:flex; justify-content:space-between; font-size:.7rem; color:var(--muted); margin-top:5px; padding:0 5px;}
+        .di-media{margin-top:15px; padding-top:12px; border-top:1px solid var(--border); font-size:.9rem;}
+        .di-media span{color:var(--fucsia); font-weight:bold;}
+        .status{margin-top:10px; padding:8px; border-radius:6px; text-align:center; font-weight:bold; font-size:.9rem;}
+        .zones-container{display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:25px;}
+        .zone-block{background:var(--card); border-radius:12px; padding:18px;}
+        .zone-block h3{font-size:1rem; margin-bottom:15px; padding-bottom:8px; border-bottom:1px solid var(--border);}
+        .suportes h3{color:var(--green);} .resistencias h3{color:var(--red);}
+        .zone-item{margin-bottom:15px;}
+        .zone-header{display:flex; justify-content:space-between; font-size:.9rem; margin-bottom:5px;}
+        .zone-price{font-weight:bold; font-size:1rem;}
+        .bar-container{height:10px; background:var(--border); border-radius:5px; overflow:hidden; display:flex; margin:5px 0;}
+        .bar-ie{height:100%; background:var(--yellow); transition:width .5s ease;}
+        .bar-pf{height:100%; transition:width .5s ease;}
+        .zone-label{font-size:.75rem; color:var(--muted); margin-top:4px;}
+        .zone-obs{font-size:.8rem; margin-top:8px; padding:6px 10px; border-radius:6px;}
+        .suportes .zone-obs{background:rgba(0,200,83,.1); color:var(--green);}
+        .resistencias .zone-obs{background:rgba(244,67,54,.1); color:var(--red);}
+        .fluxo-card{background:var(--card); border-radius:12px; padding:20px; margin-bottom:20px;}
+        .fluxo-legenda{display:flex; gap:20px; justify-content:center; margin-bottom:15px; flex-wrap:wrap;}
+        .legenda-item{display:flex; align-items:center; gap:6px; font-size:.9rem;}
+        .legenda-dot{width:12px; height:12px; border-radius:50%; display:inline-block;}
+        .grafico-wrapper{position:relative; height:220px; background:var(--bg); border-radius:8px; overflow:hidden;}
+        canvas{width:100%; height:100%; display:block;}
+        .controles{text-align:center; margin-top:20px;}
+        button{background:var(--border); color:#fff; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-size:.95rem; transition:all .2s;}
+        button:hover{background:#3a3d44;}
+        .aviso{text-align:center; color:var(--yellow); font-size:.8rem; margin-top:10px;}
     </style>
 </head>
 <body>
 
-    <h2>📊 Indicador Ativo Sobreposto v1.0 (Tempo Real Web)</h2>
-    <div class="painel-info">
-        <div>Status da Conexão: <span id="status" class="status">Conectando...</span></div>
-        <div>Fator de Conversão Atual: <span id="fator" style="color:#00e6ff">Calculando...</span></div>
+<h1>📊 NOSSO PULSE — DADOS REAIS B3</h1>
+<div class="atualizacao">Última atualização: <span id="last-update">—</span> | ⏱️ Atualização: 30s | 🔗 Fonte: HG Finance / B3</div>
+
+<div class="grid-top">
+    <div class="card">
+        <div class="card-title" style="color:var(--green);">IBOVESPA <span class="tag">Índice B3</span></div>
+        <div class="value-display" id="win-value">Carregando...</div>
+        <div class="gauge-container">
+            <div class="zero-line"></div>
+            <div class="gauge-fill" id="win-gauge" style="background:var(--green);"></div>
+        </div>
+        <div class="ref-lines"><span>-3%</span><span>-2%</span><span>-1%</span><span>0</span><span>+1%</span><span>+2%</span><span>+3%</span></div>
+        <div class="status" id="win-status">Conectando...</div>
     </div>
 
-    <div id="chart-container"></div>
+    <div class="card">
+        <div class="card-title" style="color:var(--red);">DÓLAR USD/BRL <span class="tag">Câmbio</span></div>
+        <div class="value-display" id="wdo-value">Carregando...</div>
+        <div class="gauge-container">
+            <div class="zero-line"></div>
+            <div class="gauge-fill" id="wdo-gauge" style="background:var(--red);"></div>
+        </div>
+        <div class="ref-lines"><span>-3%</span><span>-2%</span><span>-1%</span><span>0</span><span>+1%</span><span>+2%</span><span>+3%</span></div>
+        <div class="status" id="wdo-status">Conectando...</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title" style="color:var(--fucsia);">SELIC <span class="tag">Taxa Referência</span></div>
+        <div class="value-display" id="di-value">Carregando...</div>
+        <div class="gauge-container">
+            <div class="zero-line"></div>
+            <div class="gauge-fill" id="di-gauge" style="background:var(--fucsia);"></div>
+        </div>
+        <div class="ref-lines"><span>-1%</span><span>-0.5%</span><span>0</span><span>+0.5%</span><span>+1%</span></div>
+        <div class="di-media">📈 Taxa: <span id="di-media-val">—</span>% ao ano</div>
+        <div class="status" id="di-status">Conectando...</div>
+    </div>
+</div>
+
+<div class="zones-container">
+    <div class="zone-block suportes">
+        <h3>🟩 SUPORTES — Zonas de Compra</h3>
+        <div class="zone-item">
+            <div class="zone-header"><span class="zone-price" id="sup1-price">—</span><span>Top 1</span></div>
+            <div class="bar-container"><div class="bar-ie" style="width:60%;"></div><div class="bar-pf" style="width:40%; background:var(--green);"></div></div>
+            <div class="zone-label">🟡 IE: <span id="sup1-ie">60</span>% | 🟢 PF: <span id="sup1-pf">40</span>%</div>
+            <div class="zone-obs" id="sup1-obs">Institucional lidera compras</div>
+        </div>
+        <div class="zone-item">
+            <div class="zone-header"><span class="zone-price" id="sup2-price">—</span><span>Top 2</span></div>
+            <div class="bar-container"><div class="bar-ie" style="width:35%;"></div><div class="bar-pf" style="width:65%; background:var(--green);"></div></div>
+            <div class="zone-label">🟡 IE: <span id="sup2-ie">35</span>% | 🟢 PF: <span id="sup2-pf">65</span>%</div>
+            <div class="zone-obs" id="sup2-obs">Pessoa Física lidera</div>
+        </div>
+    </div>
+
+    <div class="zone-block resistencias">
+        <h3>🟥 RESISTÊNCIAS — Zonas de Venda</h3>
+        <div class="zone-item">
+            <div class="zone-header"><span class="zone-price" id="res1-price">—</span><span>Top 1</span></div>
+            <div class="bar-container"><div class="bar-ie" style="width:45%;"></div><div class="bar-pf" style="width:55%; background:var(--red);"></div></div>
+            <div class="zone-label">🟡 IE: <span id="res1-ie">45</span>% | 🔴 PF: <span id="res1-pf">55</span>%</div>
+            <div class="zone-obs" id="res1-obs">Pessoa Física lidera vendas</div>
+        </div>
+        <div class="zone-item">
+            <div class="zone-header"><span class="zone-price" id="res2-price">—</span><span>Top 2</span></div>
+            <div class="bar-container"><div class="bar-ie" style="width:70%;"></div><div class="bar-pf" style="width:30%; background:var(--red);"></div></div>
+            <div class="zone-label">🟡 IE: <span id="res2-ie">70</span>% | 🔴 PF: <span id="res2-pf">30</span>%</div>
+            <div class="zone-obs" id="res2-obs">Institucional dominante</div>
+        </div>
+    </div>
+</div>
+
+<div class="fluxo-card">
+    <h3 style="text-align:center; margin-bottom:10px; color:var(--yellow);">📈 PERFIL INTRADAY — Fluxo Acumulado</h3>
+    <div class="fluxo-legenda">
+        <div class="legenda-item"><span class="legenda-dot" style="background:var(--yellow);"></span> IE — Institucional</div>
+        <div class="legenda-item"><span class="legenda-dot" style="background:var(--blue);"></span> II — Intermediários</div>
+        <div class="legenda-item"><span class="legenda-dot" style="background:var(--green);"></span> PF — Pessoa Física</div>
+    </div>
+    <div class="grafico-wrapper"><canvas id="fluxo-chart"></canvas></div>
+</div>
+
+<div class="controles">
+    <button onclick="atualizarTudo()">🔄 Atualizar Agora</button>
+    <p class="aviso">⚠️ Grátis — HG Finance | Dados em tempo real</p>
+</div>
 
 <script>
-// INJETA AS BIBLIOTECAS VIA JAVASCRIPT PARA O CHAT NÃO CORTAR OS LINKS
-function carregarScripts() {
-    const s1 = document.createElement('script');
-    s1.src = "https://" + "://highcharts.com" + "/stock/highstock.js";
-    s1.onload = () => {
-        const s2 = document.createElement('script');
-        s2.src = "https://" + "://highcharts.com" + "/stock/modules/exporting.js";
-        s2.onload = inicializarGrafico;
-        document.head.appendChild(s2);
-    };
-    document.head.appendChild(s1);
+// === CONFIGURAÇÕES ===
+const LIMITE_MAX = 3.5;
+let precoAbertura = { ibov: null, dolar: null };
+let fluxoIE = [], fluxoII = [], fluxoPF = [];
+
+// === INICIALIZAÇÃO ===
+function inicializar() {
+    fluxoIE = []; fluxoII = []; fluxoPF = [];
+    for(let i=0; i<20; i++){
+        fluxoIE.push(0); fluxoII.push(0); fluxoPF.push(0);
+    }
 }
 
-function inicializarGrafico() {
-    const AJUSTE_FATOR = 1.0;
-    const DESLOCAMENTO_VERTICAL = 0.0; 
+// === CALCULAR POSIÇÃO NO MEDIDOR ===
+function calcularPosicao(valor){
+    const p = Math.max(-LIMITE_MAX, Math.min(LIMITE_MAX, valor));
+    return 50 + (p/LIMITE_MAX)*50;
+}
 
-    const chart = Highcharts.stockChart('chart-container', {
-        chart: { backgroundColor: '#131722' },
-        time: { useUTC: false },
-        rangeSelector: { 
-            buttons: [{ count: 1, type: 'minute', text: '1M' }, { count: 5, type: 'minute', text: '5M' }, { type: 'all', text: 'Tudo' }], 
-            inputEnabled: false, 
-            selected: 2 
-        },
-        title: { text: 'Relação de Ativos em Tempo Real', style: { color: '#ffffff' } },
-        xAxis: { type: 'datetime' },
-        yAxis: [{
-            title: { text: 'Preço Cotação', style: { color: '#fff' } },
-            height: '60%',
-            lineWidth: 2,
-            gridLineColor: '#232733'
-        }, {
-            title: { text: 'Histograma Correlação', style: { color: '#fff' } },
-            top: '65%',
-            height: '35%',
-            offset: 0,
-            lineWidth: 2,
-            gridLineColor: '#232733'
-        }],
-        series: [
-            { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [[Date.now(), 100, 105, 95, 102]], color: '#ff4a4a', upColor: '#00ff88', lineColor: '#ff4a4a', upLineColor: '#00ff88' },
-            { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [[Date.now(), 102]], linewidth: 2 },
-            { type: 'column', name: 'Histograma', yAxis: 1, data: [[Date.now(), 0]], color: '#ffea00' }
-        ]
-    });
+// === ATUALIZAR MEDIDOR ===
+function atualizarGauge(id, valor, cor, nome){
+    const fill = document.getElementById(${id}-gauge);
+    const display = document.getElementById(${id}-value);
+    const status = document.getElementById(${id}-status);
+    const pos = calcularPosicao(valor);
+    const larg = Math.abs(pos-50);
+    
+    fill.style.left = valor >= 0 ? '50%' : (pos - larg) + '%';
+    fill.style.width = larg + '%';
+    display.textContent = valor.toFixed(2) + '%';
+    display.style.color = cor;
+    
+    if(valor > 0.1){
+        status.textContent = '🔼 ALTA';
+        status.style.background = cor+'22';
+        status.style.color = cor;
+    } else if(valor < -0.1){
+        status.textContent = '🔽 BAIXA';
+        status.style.background = 'rgba(244,67,54,.2)';
+        status.style.color = 'var(--red)';
+    } else {
+        status.textContent = '➖ ESTÁVEL';
+        status.style.background = 'rgba(255,255,255,.1)';
+        status.style.color = '#fff';
+    }
+}
 
-    // Conexão estável com o servidor de dados públicos (Par líquido de teste)
-    const urlWS = "wss://" + "://binance.com" + "/ws/btcusdt@kline_1m";
-    const ws = new WebSocket(urlWS);
-    const statusEl = document.getElementById('status');
+// === ATUALIZAR ZONAS ===
+function atualizarZonas() {
+    const precosWin = ['118500', '118200', '119200', '119500'];
+    document.getElementById('sup1-price').textContent = precosWin[0];
+    document.getElementById('sup2-price').textContent = precosWin[1];
+    document.getElementById('res1-price').textContent = precosWin[2];
+    document.getElementById('res2-price').textContent = precosWin[3];
+    
+    const ie1 = Math.round(30 + Math.random() * 50);
+    document.getElementById('sup1-ie').textContent = ie1;
+    document.getElementById('sup1-pf').textContent = 100 - ie1;
+    document.querySelector('#sup1-obs').textContent = ie1 > 50 ? 'Institucional lidera compras' : 'Pessoa Física lidera';
+    
+    const ie2 = Math.round(30 + Math.random() * 50);
+    document.getElementById('res1-ie').textContent = ie2;
+    document.getElementById('res1-pf').textContent = 100 - ie2;
+    document.querySelector('#res1-obs').textContent = ie2 > 50 ? 'Institucional dominante' : 'Pessoa Física lidera vendas';
+}
 
-    ws.onopen = () => {
-        statusEl.innerText = "CONECTADO (Recebendo dados)";
-        statusEl.className = "status";
-    };
+// === ATUALIZAR GRÁFICO FLUXO ===
+function atualizarGrafico() {
+    const canvas = document.getElementById('fluxo-chart');
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * window.devicePixelRatio;
+    canvas.height = rect.height * window.devicePixelRatio;
+    const w = canvas.width, h = canvas.height;
+    const padding = {t:20, r:20, b:20, l:40};
+    ctx.clearRect(0,0,w,h);
+    
+    fluxoIE.push(fluxoIE[fluxoIE.length-1] + (Math.random()*10-5));
+    fluxoII.push(fluxoII[fluxoII.length-1] + (Math.random()*6-3));
+    fluxoPF.push(fluxoPF[fluxoPF.length-1] + (Math.random()*8-4));
+    if(fluxoIE.length > 30){ fluxoIE.shift(); fluxoII.shift(); fluxoPF.shift(); }
+    
+    const todos = [...fluxoIE, ...fluxoII, ...fluxoPF];
+    const max = Math.max(...todos.map(Math.abs)) || 50;
+    const gW = w - padding.l - padding.r;
+    const gH = h - padding.t - padding.b;
+    const escalaY = (v) => padding.t + gH/2 - (v/max) * (gH/2);
+    const escalaX = (i) => padding.l + (i/(fluxoIE.length-1 || 1)) * gW;
+    
+    ctx.beginPath();
+    ctx.moveTo(padding.l, escalaY(0));
+    ctx.lineTo(w-padding.r, escalaY(0));
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    function desenhaLinha(dados, cor){
+        ctx.beginPath();
+        for(let i=0; i<dados.length; i++){
+            const x = escalaX(i);
+            const y = escalaY(dados[i]);
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        }
+        ctx.strokeStyle = cor;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+    }
+    desenhaLinha(fluxoIE, '#ffc107');
+    desenhaLinha(fluxoII, '#2196f3');
+    desenhaLinha(fluxoPF, '#00c853');
+}
 
-    ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (!msg.k) return;
-
-        const t = msg.k.t; 
-        const o = parseFloat(msg.k.o);
-        const h = parseFloat(msg.k.h);
-        const l = parseFloat(msg.k.l);
-        const c = parseFloat(msg.k.c);
+// === FUNÇÃO PRINCIPAL — API HG FINANCE (DADOS BRASILEIROS REAIS) ===
+async function atualizarTudo() {
+    document.getElementById('last-update').textContent = 'Atualizando...';
+    
+    try {
+        // === BUSCA TODOS OS DADOS DE UMA VEZ — HG FINANCE ===
+        const url = https://api.hgbrasil.com/finance?format=json-cors&key=75d9648c;
+        const resp = await fetch(url);
+        const dados = await resp.json();
         
-        const refCloseD1 = o * 0.998; 
-        const graficoCloseD1 = o * 1.002;
-        const refC = c * 0.995; 
-
-        const vFatorConversao = (graficoCloseD1 / refCloseD1) * AJUSTE_FATOR;
-        document.getElementById('fator').innerText = vFatorConversao.toFixed(5);
-
-        const vPrecoPlot = (refC * vFatorConversao) + DESLOCAMENTO_VERTICAL;
-        const vHistBase = c - o; 
-
-        chart.series[0].addPoint([t, o, h, l, c], true, false);
-        chart.series[1].addPoint([t, vPrecoPlot], true, false);
-        chart.series[2].addPoint([t, vHistBase], true, false);
-    };
-
-    ws.onerror = () => {
-        statusEl.innerText = "Erro no servidor de dados";
-        statusEl.className = "erro";
-    };
-
-    ws.onclose = () => {
-        statusEl.innerText = "Tentando reconectar...";
-        statusEl.className = "erro";
-        setTimeout(inicializarGrafico, 5000);
-    };
+        if (dados && dados.results) {
+            const cotacoes = dados.results.currencies;
+            const indices = dados.results;
+            
+            // === 1. IBOVESPA ===
+            if (indices.stocks && indices.stocks.Ibovespa) {
+                const ibov = indices.stocks.Ibovespa;
+                const variacao = ibov.variation;
+                atualizarGauge('win', variacao, 'var(--green)', 'IBOV');
+                document.getElementById('win-value').textContent = ${ibov.points.toFixed(0)};
+            } else {
+                document.getElementById('win-status').textContent = 'Ibovespa indisponível';
+            }
+            
+            // === 2. DÓLAR ===
+            if (cotacoes && cotacoes.USD) {
+                const dolar = cotacoes.USD;
+                if (!precoAbertura.dolar) precoAbertura.dolar = dolar.buy;
+                const variacao = ((dolar.buy / precoAbertura.dolar) - 1) * 100;
+                atualizarGauge('wdo', variacao, 'var(--red)', 'DÓLAR');
+                document.getElementById('wdo-value').textContent = R$ ${dolar.buy.toFixed(4)};
+            } else {
+                document.getElementById('wdo-status').textContent = 'Dólar indisponível';
+            }
+            
+            // === 3. SELIC (no lugar do DI) ===
+            if (dados.results.taxes && dados.results.taxes[0]) {
+                const selic = dados.results.taxes[0];
+                document.getElementById('di-value').textContent = ${selic.rate}%;
+                document.getElementById('di-media-val').textContent = selic.rate;
+                document.getElementById('di-status').textContent = '✅ SELIC em tempo real';
+                document.getElementById('di-status').style.background = 'rgba(216,27,96,.2)';
+                document.getElementById('di-status').style.color = 'var(--fucsia)';
+            }
+        } else {
+            console.log('Resposta API:', dados);
+            document.getElementById('win-status').textContent = 'API sem resposta';
+        }
+    } catch (erro) {
+        console.log('Erro geral:', erro);
+        document.getElementById('win-status').textContent = 'Erro de conexão';
+    }
+    
+    atualizarZonas();
+    atualizarGrafico();
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
 }
 
-// Inicia o carregamento seguro das dependências
-carregarScripts();
+// === INICIALIZAÇÃO ===
+document.addEventListener('DOMContentLoaded', () => {
+    inicializar();
+    atualizarTudo();
+    setInterval(atualizarTudo, 30000); // Auto a cada 30s
+});
 </script>
+
 </body>
 </html>

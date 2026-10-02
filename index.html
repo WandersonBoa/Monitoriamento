@@ -1,25 +1,21 @@
-html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativo SobrePosto — 2Min e 5Min</title>
+    <title>Ativo SobrePosto — 2Min e 5Min Vertical</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background-color: #030a16; color: #ffffff; padding: 15px; min-height: 100vh; display: flex; flex-direction: column; gap: 15px; }
         header { text-align: center; }
         h1 { font-size: 1.3rem; letter-spacing: 1px; color: #ffc107; }
         
-        /* Container que divide a tela ao meio para os dois gráficos */
+        /* Container empilhado verticalmente (um sobre o outro) */
         .painel-graficos { 
             display: flex; 
             flex-direction: column; 
             gap: 15px; 
             flex-grow: 1; 
-        }
-        @media(min-width: 900px) {
-            .painel-graficos { flex-direction: row; }
         }
         
         .grafico-box { 
@@ -27,11 +23,13 @@ html
             border: 1px solid #0d203d; 
             border-radius: 8px; 
             padding: 15px; 
-            flex: 1; 
+            width: 100%;
+            height: calc(50vh - 50px); /* Divide a tela igualmente na vertical */
+            min-height: 280px;
             display: flex; 
             flex-direction: column; 
         }
-        .container-chart { width: 100%; flex-grow: 1; min-height: 380px; }
+        .container-chart { width: 100%; flex-grow: 1; }
     </style>
 </head>
 <body>
@@ -67,7 +65,7 @@ function iniciarSistema() {
     document.head.appendChild(scriptStock);
 }
 
-function criarConfiguracaoGrafico(titulo, corLinhaBase) {
+function criarConfiguracaoGrafico(titulo) {
     return {
         chart: { backgroundColor: '#031022' },
         time: { useUTC: false },
@@ -82,43 +80,44 @@ function criarConfiguracaoGrafico(titulo, corLinhaBase) {
             lineWidth: 1,
             lineColor: '#0b1d37',
             opposite: true,
-            // Desenha a linha de referência central exatamente em 0
             plotLines: [{
                 value: 0,
-                color: '#00ff88',
+                color: '#55647a',
                 width: 1,
                 dashStyle: 'shortdash',
-                zIndex: 4
+                zIndex: 2
             }]
         },
         plotOptions: {
             series: {
                 lineWidth: 2,
                 dataGrouping: { enabled: false },
-                // Configuração visual da imagem: Verde acima de zero, Vermelho abaixo
                 zones: [{
                     value: 0,
-                    color: '#ff1744' // Vermelho para valores negativos
+                    color: '#ff1744' 
                 }, {
-                    color: '#00e676' // Verde para valores positivos
+                    color: '#00e676' 
                 }]
             }
         },
         series: [{
+            type: 'spline',
             name: 'vHistref',
-            data: []
+            data:
         }]
     };
 }
 
 function rodarIndicadores() {
-    // Inicializa os dois gráficos independentes na tela
-    const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)', '#ff1744'));
-    const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)', '#00e676'));
+    const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)'));
+    const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)'));
 
-    // Histórico para cálculo das médias móveis originais
-    let dados2M = [];
-    let dados5M = [];
+    let dados2M =;
+    let dados5M =;
+
+    // Timestamps de controle para fechar os blocos de tempo
+    let proximaAtualizacao2M = 0;
+    let proximaAtualizacao5M = 0;
 
     const wssUrl = "wss://" + "stream" + "." + "binance" + ".com:9443/ws/btcusdt@kline_1m";
     const ws = new WebSocket(wssUrl);
@@ -131,29 +130,35 @@ function rodarIndicadores() {
         const closePrice = parseFloat(msg.k.c);
         const openPrice = parseFloat(msg.k.o);
 
-        // Estrutura matemática da sua regra do Profit convertida
         const vAssetPrice = closePrice * 0.95;
         const vFatorConversao = openPrice / (openPrice * 0.948);
         const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        // --- CÁLCULO PARA O GRÁFICO DE 2 MINUTOS ---
-        dados2M.push(vPrecoPlot);
-        if(dados2M.length > 21) dados2M.shift();
-        const media2M = dados2M.reduce((a, b) => a + b, 0) / dados2M.length;
-        const vHistRef2M = vPrecoPlot - media2M;
+        const limitePontos = chart2M.series.data.length > 50;
 
-        // --- CÁLCULO PARA O GRÁFICO DE 5 MINUTOS (Filtro multiplicador de suavização) ---
-        dados5M.push(vPrecoPlot);
-        if(dados5M.length > 50) dados5M.shift();
-        const media5M = dados5M.reduce((a, b) => a + b, 0) / dados5M.length;
-        // O multiplicador amplifica a distorção para simular o tempo maior (5M) com precisão visual
-        const vHistRef5M = (vPrecoPlot - media5M) * 1.4; 
+        // --- ATUALIZAÇÃO INDIVIDUAL: GRÁFICO DE 2 MINUTOS ---
+        if (time >= proximaAtualizacao2M) {
+            dados2M.push(vPrecoPlot);
+            if(dados2M.length > 21) dados2M.shift();
+            const media2M = dados2M.reduce((a, b) => a + b, 0) / dados2M.length;
+            const vHistRef2M = vPrecoPlot - media2M;
 
-        const limitePontos = chart2M.series[0].data.length > 80;
+            chart2M.series.addPoint([time, vHistRef2M], true, limitePontos);
+            // Define o próximo candle para daqui a 2 minutos exatos (120000 milissegundos)
+            proximaAtualizacao2M = time + 120000; 
+        }
 
-        // Atualiza ambos de forma síncrona lado a lado
-        chart2M.series[0].addPoint([time, vHistRef2M], true, limitePontos);
-        chart5M.series[0].addPoint([time, vHistRef5M], true, limitePontos);
+        // --- ATUALIZAÇÃO INDIVIDUAL: GRÁFICO DE 5 MINUTOS ---
+        if (time >= proximaAtualizacao5M) {
+            dados5M.push(vPrecoPlot);
+            if(dados5M.length > 50) dados5M.shift();
+            const media5M = dados5M.reduce((a, b) => a + b, 0) / dados5M.length;
+            const vHistRef5M = (vPrecoPlot - media5M) * 1.4; 
+
+            chart5M.series.addPoint([time, vHistRef5M], true, limitePontos);
+            // Define o próximo candle para daqui a 5 minutos exatos (300000 milissegundos)
+            proximaAtualizacao5M = time + 300000; 
+        }
     };
 }
 

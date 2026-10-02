@@ -4,12 +4,13 @@ html
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativo SobrePosto — 2Min e 5Min Vertical</title>
+    <title>Ativo SobrePosto — Horário Comercial</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background-color: #030a16; color: #ffffff; padding: 15px; min-height: 100vh; display: flex; flex-direction: column; gap: 15px; }
         header { text-align: center; }
         h1 { font-size: 1.3rem; letter-spacing: 1px; color: #ffc107; }
+        .painel-status { text-align: center; font-size: 0.85rem; color: #8fa0bc; margin-top: -5px; }
         
         .painel-graficos { 
             display: flex; 
@@ -24,7 +25,7 @@ html
             border-radius: 8px; 
             padding: 15px; 
             width: 100%;
-            height: calc(50vh - 50px);
+            height: calc(50vh - 60px);
             min-height: 280px;
             display: flex; 
             flex-direction: column; 
@@ -36,6 +37,7 @@ html
 
 <header>
     <h1>📈 ATIVO SOBREPOSTO — GRÁFICOS COMBINADOS</h1>
+    <div class="painel-status">Horário de Monitoramento: 09:00 às 18:00 (Tempo Real)</div>
 </header>
 
 <div class="painel-graficos">
@@ -73,7 +75,16 @@ function criarConfiguracaoGrafico(titulo) {
         navigator: { enabled: false },
         scrollbar: { enabled: false },
         title: { text: titulo, style: { color: '#8fa0bc', fontSize: '14px', fontWeight: 'bold' } },
-        xAxis: { type: 'datetime', gridLineColor: '#0b1d37', gridLineWidth: 1, ordinal: false },
+        xAxis: { 
+            type: 'datetime', 
+            gridLineColor: '#0b1d37', 
+            gridLineWidth: 1, 
+            ordinal: false,
+            labels: {
+                style: { color: '#8fa0bc' },
+                format: '{value:%H:%M:%S}' // Força a escala de tempo legível com hora, minuto e segundo
+            }
+        },
         yAxis: {
             title: { text: '' },
             gridLineColor: '#0b1d37',
@@ -115,7 +126,6 @@ function rodarIndicadores() {
     let dados2M = [];
     let dados5M = [];
 
-    // Controles de tempo inicializados em zero para plotar o primeiro ponto na hora
     let proximaAtualizacao2M = 0;
     let proximaAtualizacao5M = 0;
 
@@ -126,6 +136,15 @@ function rodarIndicadores() {
         const msg = JSON.parse(event.data);
         if (!msg.k) return;
 
+        // Validação estrita do Horário Comercial (09:00 às 18:00)
+        const agora = new Date();
+        const horaAtual = agora.getHours();
+        
+        if (horaAtual < 9 || horaAtual >= 18) {
+            // Se estiver fora do horário, ignora a atualização e mantém o gráfico congelado
+            return;
+        }
+
         const time = Date.now();
         const closePrice = parseFloat(msg.k.c);
         const openPrice = parseFloat(msg.k.o);
@@ -134,7 +153,7 @@ function rodarIndicadores() {
         const vFatorConversao = openPrice / (openPrice * 0.948);
         const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        const limitePontos = 50;
+        const limitePontos = 40;
 
         // --- ATUALIZAÇÃO 2 MINUTOS ---
         if (time >= proximaAtualizacao2M) {

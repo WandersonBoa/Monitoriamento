@@ -4,11 +4,6 @@ html
 <head>
     <meta charset="UTF-8">
     <title>Visualizador Online - Ativo Sobreposto</title>
-    
-    <!-- Scripts Oficiais e Completos do Highcharts Stock -->
-    <script src="https://highcharts.com"></script>
-    <script src="https://highcharts.com"></script>
-    
     <style>
         body { background-color: #131722; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; }
         #chart-container { width: 100%; height: 600px; background: #1c2030; border-radius: 8px; }
@@ -28,44 +23,56 @@ html
     <div id="chart-container"></div>
 
 <script>
-const PERIODO_REF = 21;
-const AJUSTE_FATOR = 1.0;
-const DESLOCAMENTO_VERTICAL = 0.0; 
+// INJETA AS BIBLIOTECAS VIA JAVASCRIPT PARA O CHAT NÃO CORTAR OS LINKS
+function carregarScripts() {
+    const s1 = document.createElement('script');
+    s1.src = "https://" + "://highcharts.com" + "/stock/highstock.js";
+    s1.onload = () => {
+        const s2 = document.createElement('script');
+        s2.src = "https://" + "://highcharts.com" + "/stock/modules/exporting.js";
+        s2.onload = inicializarGrafico;
+        document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+}
 
-// Inicialização segura do gráfico após o carregamento da biblioteca
-const chart = Highcharts.stockChart('chart-container', {
-    chart: { backgroundColor: '#131722' },
-    time: { useUTC: false },
-    rangeSelector: { 
-        buttons: [{ count: 1, type: 'minute', text: '1M' }, { count: 5, type: 'minute', text: '5M' }, { type: 'all', text: 'Tudo' }], 
-        inputEnabled: false, 
-        selected: 2 
-    },
-    title: { text: 'Relação de Ativos em Tempo Real', style: { color: '#ffffff' } },
-    xAxis: { type: 'datetime' },
-    yAxis: [{
-        title: { text: 'Preço Cotação', style: { color: '#fff' } },
-        height: '60%',
-        lineWidth: 2,
-        gridLineColor: '#232733'
-    }, {
-        title: { text: 'Histograma Correlação', style: { color: '#fff' } },
-        top: '65%',
-        height: '35%',
-        offset: 0,
-        lineWidth: 2,
-        gridLineColor: '#232733'
-    }],
-    series: [
-        { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [], color: '#ff4a4a', upColor: '#00ff88', lineColor: '#ff4a4a', upLineColor: '#00ff88' },
-        { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [], lineWidth: 2 },
-        { type: 'column', name: 'Histograma', yAxis: 1, data: [], color: '#ffea00' }
-    ]
-});
+function inicializarGrafico() {
+    const AJUSTE_FATOR = 1.0;
+    const DESLOCAMENTO_VERTICAL = 0.0; 
 
-function conectarFeedTempoReal() {
-    // Canal público da Binance (Par de moedas estável para alimentar a lógica via Web)
-    const ws = new WebSocket('wss://://binance.com');
+    const chart = Highcharts.stockChart('chart-container', {
+        chart: { backgroundColor: '#131722' },
+        time: { useUTC: false },
+        rangeSelector: { 
+            buttons: [{ count: 1, type: 'minute', text: '1M' }, { count: 5, type: 'minute', text: '5M' }, { type: 'all', text: 'Tudo' }], 
+            inputEnabled: false, 
+            selected: 2 
+        },
+        title: { text: 'Relação de Ativos em Tempo Real', style: { color: '#ffffff' } },
+        xAxis: { type: 'datetime' },
+        yAxis: [{
+            title: { text: 'Preço Cotação', style: { color: '#fff' } },
+            height: '60%',
+            lineWidth: 2,
+            gridLineColor: '#232733'
+        }, {
+            title: { text: 'Histograma Correlação', style: { color: '#fff' } },
+            top: '65%',
+            height: '35%',
+            offset: 0,
+            lineWidth: 2,
+            gridLineColor: '#232733'
+        }],
+        series: [
+            { type: 'candlestick', name: 'Ativo Base', id: 'base', data: [[Date.now(), 100, 105, 95, 102]], color: '#ff4a4a', upColor: '#00ff88', lineColor: '#ff4a4a', upLineColor: '#00ff88' },
+            { type: 'line', name: 'Ativo Ref (Convertido)', id: 'ref', color: '#ffffff', data: [[Date.now(), 102]], linewidth: 2 },
+            { type: 'column', name: 'Histograma', yAxis: 1, data: [[Date.now(), 0]], color: '#ffea00' }
+        ]
+    });
+
+    // Conexão estável com o servidor de dados públicos (Par líquido de teste)
+    const urlWS = "wss://" + "://binance.com" + "/ws/btcusdt@kline_1m";
+    const ws = new WebSocket(urlWS);
     const statusEl = document.getElementById('status');
 
     ws.onopen = () => {
@@ -83,7 +90,6 @@ function conectarFeedTempoReal() {
         const l = parseFloat(msg.k.l);
         const c = parseFloat(msg.k.c);
         
-        // Aplicação da estrutura da sua regra matemática do Profit
         const refCloseD1 = o * 0.998; 
         const graficoCloseD1 = o * 1.002;
         const refC = c * 0.995; 
@@ -94,25 +100,25 @@ function conectarFeedTempoReal() {
         const vPrecoPlot = (refC * vFatorConversao) + DESLOCAMENTO_VERTICAL;
         const vHistBase = c - o; 
 
-        // Inserção dos dados dinâmicos
         chart.series[0].addPoint([t, o, h, l, c], true, false);
         chart.series[1].addPoint([t, vPrecoPlot], true, false);
         chart.series[2].addPoint([t, vHistBase], true, false);
     };
 
     ws.onerror = () => {
-        statusEl.innerText = "Erro na conexão do servidor de dados";
+        statusEl.innerText = "Erro no servidor de dados";
         statusEl.className = "erro";
     };
 
     ws.onclose = () => {
-        statusEl.innerText = "Conexão encerrada. Tentando reconectar...";
+        statusEl.innerText = "Tentando reconectar...";
         statusEl.className = "erro";
-        setTimeout(conectarFeedTempoReal, 5000);
+        setTimeout(inicializarGrafico, 5000);
     };
 }
 
-conectarFeedTempoReal();
+// Inicia o carregamento seguro das dependências
+carregarScripts();
 </script>
 </body>
 </html>

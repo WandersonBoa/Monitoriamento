@@ -37,7 +37,7 @@ html
 
 <header>
     <h1>📈 ATIVO SOBREPOSTO — GRÁFICOS COMBINADOS</h1>
-    <div class="painel-status" id="status-carregamento">Sincronizando banco de dados histórico (09:00 às 18:00)...</div>
+    <div class="painel-status" id="status-carregamento">Conectando ao servidor de dados em tempo real (09:00 às 18:00)...</div>
 </header>
 
 <div class="painel-graficos">
@@ -61,7 +61,7 @@ function iniciarSistema() {
     scriptStock.onload = () => {
         const scriptData = document.createElement('script');
         scriptData.src = urlBase + "modules/data.js";
-        scriptData.onload = carregarHistoricoComercial;
+        scriptData.onload = rodarIndicadores;
         document.head.appendChild(scriptData);
     };
     document.head.appendChild(scriptStock);
@@ -102,97 +102,36 @@ function criarConfiguracaoGrafico(titulo) {
                 zones: [{ value: 0, color: '#ff1744' }, { color: '#00e676' }]
             }
         },
-        series: [{ type: 'spline', name: 'vHistref', data: }]
+        series: [{ type: 'spline', name: 'vHistref', data: [] }]
     };
 }
 
-async function carregarHistoricoComercial() {
+function rodarIndicadores() {
     const chart2M = Highcharts.stockChart('chart-2m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 2 MINUTOS (2M)'));
     const chart5M = Highcharts.stockChart('chart-5m', criarConfiguracaoGrafico('TEMPO GRÁFICO: 5 MINUTOS (5M)'));
 
-    try {
-        // Puxa candles estáveis para estruturar a amostragem
-        const proxyUrl = "https://" + "api" + "." + "binance" + ".com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=720";
-        const resposta = await fetch(proxyUrl);
-        const candles = await resposta.json();
+    let historicoPrecos2M = [];
+    let historicoPrecos5M = [];
 
-        // Determina a janela comercial das 09:00 de hoje
-        const hoje9Horas = new Date();
-        hoje9Horas.setHours(9, 0, 0, 0);
-        const timestamp9h = hoje9Horas.getTime();
-
-        let dados1M =;
-
-        candles.forEach(c => {
-            const time = parseInt(c[0]);
-            if (time >= timestamp9h) {
-                dados1M.push({
-                    time: time,
-                    open: parseFloat(c[1]),
-                    close: parseFloat(c[4])
-                });
-            }
-        });
-
-        // --- CONSOLIDAÇÃO DO TEMPO GRÁFICO DE 2 MINUTOS ---
-        let pontos2M =;
-        let historicoPrecos2M =;
-        for (let i = 0; i < dados1M.length; i += 2) {
-            if (!dados1M[i+1]) break;
-            const item = dados1M[i+1]; // Pega o fechamento do candle de 2M
-
-            const vAssetPrice = item.close * 0.95;
-            const vFatorConversao = item.open / (item.open * 0.948);
-            const vPrecoPlot = vAssetPrice * vFatorConversao;
-
-            historicoPrecos2M.push(vPrecoPlot);
-            if (historicoPrecos2M.length > 21) historicoPrecos2M.shift();
-
-            const vAssetMedia = historicoPrecos2M.reduce((a, b) => a + b, 0) / historicoPrecos2M.length;
-            const vHistRef = vPrecoPlot - vAssetMedia;
-
-            pontos2M.push([item.time, vHistRef]);
-        }
-        chart2M.series[0].setData(pontos2M);
-
-        // --- CONSOLIDAÇÃO DO TEMPO GRÁFICO DE 5 MINUTOS ---
-        let pontos5M =;
-        let historicoPrecos5M =;
-        for (let i = 0; i < dados1M.length; i += 5) {
-            if (!dados1M[i+4]) break;
-            const item = dados1M[i+4]; // Pega o fechamento do candle de 5M
-
-            const vAssetPrice = item.close * 0.95;
-            const vFatorConversao = item.open / (item.open * 0.948);
-            const vPrecoPlot = vAssetPrice * vFatorConversao;
-
-            historicoPrecos5M.push(vPrecoPlot);
-            if (historicoPrecos5M.length > 21) historicoPrecos5M.shift(); // Conforme seu PeriodoREF(21)
-
-            const vAssetMedia = historicoPrecos5M.reduce((a, b) => a + b, 0) / historicoPrecos5M.length;
-            const vHistRef = vPrecoPlot - vAssetMedia;
-
-            pontos5M.push([item.time, vHistRef]);
-        }
-        chart5M.series[0].setData(pontos5M);
-
-        document.getElementById('status-carregamento').innerText = "Horário de Monitoramento: 09:00 às 18:00 (Histórico Alinhado)";
-        
-        // Passa os buffers de médias preenchidos para continuar em tempo real sem saltos
-        conectarDadosTempoReal(chart2M, chart5M, historicoPrecos2M, historicoPrecos5M);
-
-    } catch (erro) {
-        document.getElementById('status-carregamento').innerText = "Falha ao conectar na API. Aguardando mercado...";
-        conectarDadosTempoReal(chart2M, chart5M, [], []);
+    // Inicializa gerando uma linha de base estável na hora de abrir
+    const tempoInicial = Date.now();
+    for(let i = 40; i >= 0; i--) {
+        const fakeTime = tempoInicial - (i * 60000);
+        chart2M.series[0].addPoint([fakeTime, 0], false);
+        chart5M.series[0].addPoint([fakeTime, 0], false);
     }
-}
+    chart2M.redraw();
+    chart5M.redraw();
 
-function conectarDadosTempoReal(chart2M, chart5M, historicoPrecos2M, historicoPrecos5M) {
     let proximaAtualizacao2M = 0;
     let proximaAtualizacao5M = 0;
 
     const wssUrl = "wss://" + "stream" + "." + "binance" + ".com:9443/ws/btcusdt@kline_1m";
     const ws = new WebSocket(wssUrl);
+
+    ws.onopen = () => {
+        document.getElementById('status-carregamento').innerText = "Horário de Monitoramento: 09:00 às 18:00 (CONECTADO VIA WEBSOCKET)";
+    };
 
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
@@ -200,7 +139,7 @@ function conectarDadosTempoReal(chart2M, chart5M, historicoPrecos2M, historicoPr
 
         const agora = new Date();
         const horaAtual = agora.getHours();
-        if (horaAtual < 9 || horaAtual >= 18) return; // Trava estritamente às 18h
+        if (horaAtual < 9 || horaAtual >= 18) return; 
 
         const time = Date.now();
         const closePrice = parseFloat(msg.k.c);
@@ -210,9 +149,9 @@ function conectarDadosTempoReal(chart2M, chart5M, historicoPrecos2M, historicoPr
         const vFatorConversao = openPrice / (openPrice * 0.948);
         const vPrecoPlot = vAssetPrice * vFatorConversao;
 
-        const limitePontos = 300;
+        const limitePontos = 200;
 
-        // --- ATUALIZAÇÃO 2 MINUTOS EM TEMPO REAL ---
+        // --- ATUALIZAÇÃO 2 MINUTOS ---
         if (time >= proximaAtualizacao2M) {
             historicoPrecos2M.push(vPrecoPlot);
             if(historicoPrecos2M.length > 21) historicoPrecos2M.shift();
@@ -223,12 +162,12 @@ function conectarDadosTempoReal(chart2M, chart5M, historicoPrecos2M, historicoPr
             proximaAtualizacao2M = time + 120000; 
         }
 
-        // --- ATUALIZAÇÃO 5 MINUTOS EM TEMPO REAL ---
+        // --- ATUALIZAÇÃO 5 MINUTOS ---
         if (time >= proximaAtualizacao5M) {
             historicoPrecos5M.push(vPrecoPlot);
             if(historicoPrecos5M.length > 21) historicoPrecos5M.shift();
             const vAssetMedia5M = historicoPrecos5M.reduce((a, b) => a + b, 0) / historicoPrecos5M.length;
-            const vHistRef5M = vAssetMedia5M !== 0 ? (vPrecoPlot - vAssetMedia5M) : 0;
+            const vHistRef5M = (vPrecoPlot - vAssetMedia5M) * 1.5;
 
             chart5M.series[0].addPoint([time, vHistRef5M], true, chart5M.series[0].data.length > limitePontos);
             proximaAtualizacao5M = time + 300000; 
